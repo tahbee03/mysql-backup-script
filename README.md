@@ -1,1 +1,4 @@
-# sql-backup-script
+# Automated MySQL Database Backup Script for Cross-Platform Remote Clients <br> ![mysql](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white) ![shell](https://img.shields.io/badge/Shell_Script-121011?style=for-the-badge&logo=gnu-bash&logoColor=white) ![ubuntu](https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
+
+## Project Description
+The goal of this project is to develop a robust and cross-platform script that automates the backup of a remote MySQL database. The script will run on a client machine (Linux, macOS, or Windows) and back up a MySQL database hosted on a remote server. The client machine has MySQL installed via a Docker image and may need to connect to the remote server via SSH if direct MySQL access is not available. The script should handle errors gracefully, log its activities, and store backups securely on the client machine.
