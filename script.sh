@@ -32,7 +32,7 @@ log_message() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE"
 }
 
-log_message "Initiating script..."
+log_message "Initiating backup script via Bash..."
 
 # Check if SSH tunneling is needed
 log_message "Attempting direct server connection..."
@@ -78,3 +78,4 @@ if [ "$SSH_TUNNEL_REQUIRED" = true ]; then
 fi
 
 log_message "Backup completed successfully: $COMPRESSED_FILE"
+log_message "Done."

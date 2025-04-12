@@ -14,3 +14,55 @@ Server:
 - Linux (preferably)
 - MySQL Server
 - SSH
+
+## Setup
+In order to ensure the script works efficiently and seamlessly, make sure that the following steps are done first on your client machine. Once the setup is complete, the steps do not need to be done again.
+
+1. Ensure that `ssh-copy-id` is installed. This reduces the hassle of manually copying SSH keys to the remote server. (NOTE: `ssh-keygen` should be available by default on all operating systems.)
+
+    macOS:
+    ```bash
+    $ brew install ssh-copy-id
+    ```
+
+    Windows:  
+    `ssh-copy-id` is not available as a usable program for Windows. As an alternative, you can either use Windows Subsystem for Linux (WSL) or PuTTY to use the command via a Windows machine.
+
+    Linux:  
+    `ssh-copy-id` is available by default for Linux.
+
+2. Generate an SSH key pair with `ssh-keygen`. This will allow you to securely SSH into the remote server without a password prompt. Additional options for this command can be found [here](https://man7.org/linux/man-pages/man1/ssh-keygen.1.html).
+
+    ```bash
+    $ ssh-keygen
+    ```
+
+    The output that follows should look like this after pressing the Enter key several times:
+    ```text
+    Generating public/private ed25519 key pair.
+    Enter file in which to save the key (/home/<user>/.ssh/id_ed25519): 
+    Enter passphrase (empty for no passphrase): 
+    Enter same passphrase again: 
+    Your identification has been saved in /home/<user>/.ssh/id_ed25519
+    Your public key has been saved in /home/<user>/.ssh/id_ed25519.pub
+    ```
+
+    The file name and passphrase (aka password) are optional. If a file name is entered, the keys will be stored in the directory where `ssh-keygen` was used. Provide a full path instead if you want the keys to be stored in a specific location.
+
+    Note that the public key ends with `.pub`; the private key has the same name without the `.pub` suffix.
+
+3. Copy the public key to the remote host with `ssh-copy-id`. Use of this command automatically appends the public key to the file `.../<user>/.ssh/authorized_keys` on the remote server. **Do not share the private key.**
+
+    ```bash
+    $ ssh-copy-id <user>@<host>
+    ```
+
+    If your client machine has multiple SSH key pairs and/or your keys do not follow the default naming conventions, use the `-i` flag to specify the path of the public key you would like to copy.
+    ```bash
+    $ ssh-copy-id -i <public_key_path> <user>@<host>
+    ```
+
+    In the case where `ssh-copy-id` cannot be used, the public key can be manually copied to the remote server with the following:
+    ```bash
+    $ cat <public_key_path> | ssh <user>@<host> "cat >> ~/.ssh/authorized_keys"
+    ```

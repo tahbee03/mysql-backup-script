@@ -43,7 +43,7 @@ BACKUP_COMPLETE = False
 # List of commands
 # ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
 ssh_command = f"ssh -f -N -L {LOCAL_PORT}:{DB_HOST}:{DB_PORT} {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
-backup_command = f"docker run --rm mysql:latest mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
+backup_command = f"sudo docker run --rm mysql:latest mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
 cleanup_command = f"pkill -f ssh.*{LOCAL_PORT}:{DB_HOST}:{DB_PORT}".split()
 
 # Custom log-and-print function
@@ -68,16 +68,22 @@ def docker_backup():
         else:
             return 0
 
-log_message(20, "Initiating script...")
+# Terminates any ongoing SSH connection
+def ssh_cleanup():
+    log_message(20, f"Terminating SSH conection...")
+    subprocess.run(cleanup_command)
+
+log_message(20, "Initiating backup script via Python...")
 
 # Attempt backup with a direct connection to the MySQL server
-log_message(20, "Attempting direct server connection...")
-if docker_backup() != 0:
-    log_message(40, "Backup via direct connection failed.")
-    SSH_TUNNEL_REQUIRED = True
-else:
-    log_message(20, "Backup via direct connection successful.")
-    BACKUP_COMPLETE = True
+if not SSH_TUNNEL_REQUIRED:
+    log_message(20, "Attempting direct server connection...")
+    if docker_backup() != 0:
+        log_message(40, "Backup via direct connection failed.")
+        SSH_TUNNEL_REQUIRED = True
+    else:
+        log_message(20, "Backup via direct connection successful.")
+        BACKUP_COMPLETE = True
 
 # Attempt backup with SSH connection
 if SSH_TUNNEL_REQUIRED:
@@ -91,6 +97,7 @@ if SSH_TUNNEL_REQUIRED:
         log_message(20, "SSH connection successful. Attempting to back up data...")
         if docker_backup() != 0:
             log_message(40, "Backup via SSH connection failed.")
+            ssh_cleanup()
             exit(1)
         else:
             log_message(20, "Backup via SSH connection successful.")
@@ -101,12 +108,11 @@ if BACKUP_COMPLETE:
     log_message(20, "Compressing backup file...")
     with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
         myzip.write(f"{BACKUP_FILE}")
-
-log_message(20, f"Compression completed: {COMPRESSED_FILE}")
+    log_message(20, f"Compression completed: {COMPRESSED_FILE}")
 
 # Clean up SSH tunnel if used
 if SSH_TUNNEL_REQUIRED:
-    log_message(20, f"Terminating SSH conection...")
-    subprocess.run(cleanup_command)
+    ssh_cleanup()
 
+log_message(20, "Done.")
 exit(0)
