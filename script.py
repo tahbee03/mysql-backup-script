@@ -73,46 +73,51 @@ def ssh_cleanup():
     log_message(20, f"Terminating SSH conection...")
     subprocess.run(cleanup_command)
 
-log_message(20, "Initiating backup script via Python...")
+def main():
+    log_message(20, "Initiating backup script via Python...")
 
-# Attempt backup with a direct connection to the MySQL server
-if not SSH_TUNNEL_REQUIRED:
-    log_message(20, "Attempting direct server connection...")
-    if docker_backup() != 0:
-        log_message(40, "Backup via direct connection failed.")
-        SSH_TUNNEL_REQUIRED = True
-    else:
-        log_message(20, "Backup via direct connection successful.")
-        BACKUP_COMPLETE = True
-
-# Attempt backup with SSH connection
-if SSH_TUNNEL_REQUIRED:
-    log_message(20, "Attempting SSH connection...")
-    ssh_process = subprocess.run(ssh_command, stderr=subprocess.PIPE)
-    if ssh_process.returncode != 0:
-        log_message(40, ssh_process.stderr.decode("utf-8"))
-        log_message(40, "Failed to set up SSH connection.")
-        exit(1)
-    else:
-        log_message(20, "SSH connection successful. Attempting to back up data...")
+    # Attempt backup with a direct connection to the MySQL server
+    if not SSH_TUNNEL_REQUIRED:
+        log_message(20, "Attempting direct server connection...")
         if docker_backup() != 0:
-            log_message(40, "Backup via SSH connection failed.")
-            ssh_cleanup()
-            exit(1)
+            log_message(40, "Backup via direct connection failed.")
+            SSH_TUNNEL_REQUIRED = True
         else:
-            log_message(20, "Backup via SSH connection successful.")
+            log_message(20, "Backup via direct connection successful.")
             BACKUP_COMPLETE = True
 
-# Compress backup file
-if BACKUP_COMPLETE:
-    log_message(20, "Compressing backup file...")
-    with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
-        myzip.write(f"{BACKUP_FILE}")
-    log_message(20, f"Compression completed: {COMPRESSED_FILE}")
+    # Attempt backup with SSH connection
+    if SSH_TUNNEL_REQUIRED:
+        log_message(20, "Attempting SSH connection...")
+        ssh_process = subprocess.run(ssh_command, stderr=subprocess.PIPE)
+        if ssh_process.returncode != 0:
+            log_message(40, ssh_process.stderr.decode("utf-8"))
+            log_message(40, "Failed to set up SSH connection.")
+            exit(1)
+        else:
+            log_message(20, "SSH connection successful. Attempting to back up data...")
+            if docker_backup() != 0:
+                log_message(40, "Backup via SSH connection failed.")
+                ssh_cleanup()
+                exit(1)
+            else:
+                log_message(20, "Backup via SSH connection successful.")
+                BACKUP_COMPLETE = True
 
-# Clean up SSH tunnel if used
-if SSH_TUNNEL_REQUIRED:
-    ssh_cleanup()
+    # Compress backup file
+    if BACKUP_COMPLETE:
+        log_message(20, "Compressing backup file...")
+        with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
+            myzip.write(f"{BACKUP_FILE}")
+        log_message(20, f"Compression completed: {COMPRESSED_FILE}")
 
-log_message(20, "Done.")
-exit(0)
+    # Clean up SSH tunnel if used
+    if SSH_TUNNEL_REQUIRED:
+        ssh_cleanup()
+
+    log_message(20, "Done.")
+    exit(0)
+
+if __name__ == "__main__":
+    # NOTE: Code to be executed was reformatted so that it is not ran when this file is imported
+    main()
