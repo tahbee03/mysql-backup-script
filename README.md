@@ -1,12 +1,13 @@
-# Automated MySQL Database Backup Script for Cross-Platform Remote Clients <br> ![mysql](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white) ![docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white) ![python](https://img.shields.io/badge/Python-FFD43B?style=for-the-badge&logo=python&logoColor=blue) ![shell-script](https://img.shields.io/badge/Shell_Script-121011?style=for-the-badge&logo=gnu-bash&logoColor=white) ![ubuntu](https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
+# Automated MySQL Database Backup Script for Cross-Platform Remote Clients  
+![mysql](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white) ![docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white) ![python](https://img.shields.io/badge/Python-FFD43B?style=for-the-badge&logo=python&logoColor=blue) ![shell-script](https://img.shields.io/badge/Shell_Script-121011?style=for-the-badge&logo=gnu-bash&logoColor=white) ![ubuntu](https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
 
 ## Project Description
 The goal of this project was to develop a robust and cross-platform script that automates the backup of a remote MySQL database. The script runs on a client machine (Linux, macOS, or Windows) and backs up a MySQL database hosted on a remote server. The client machine has MySQL installed via a Docker image and may need to connect to the remote server via SSH if direct MySQL access is not available. The script handles errors gracefully, logs its activities, and stores backups securely on the client machine.
 
-## Dependencies
+## Project Infrastructure
 Client:
 - Windows, macOS, or Linux
-- Python3
+- Python3 + PIP
 - Docker
 - SSH
 
@@ -66,3 +67,18 @@ In order to ensure the script works efficiently and seamlessly, make sure that t
     ```bash
     $ cat <public_key_path> | ssh <user>@<host> "cat >> ~/.ssh/authorized_keys"
     ```
+
+4. If you are running the python script, ensure that the necessary dependencies are installed with the following command:
+
+    ```bash
+    $ pip install -r requirements.txt
+    ```
+
+## Testing
+After the project setup has been done, the Python script can be tested with the following:
+
+```bash
+$ pytest
+```
+
+NOTE: Ensure that this is ran from the root directory so that all written tests are detected.
