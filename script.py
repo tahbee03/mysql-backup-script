@@ -5,6 +5,8 @@ import datetime
 import logging
 from zipfile import ZipFile
 from shutil import which
+import requests as req
+import platform
 
 def main():
     load_dotenv() # Load .env file
@@ -16,6 +18,7 @@ def main():
     BACKUP_DIR = "./backup"
     BACKUP_FILE = f"{BACKUP_DIR}/backup_{TIMESTAMP}.sql"
     COMPRESSED_FILE = f"{BACKUP_FILE}.zip"
+    IS_WINDOWS = True if platform.system() == "Windows" else False
     DB_HOST = os.getenv("DB_HOST")
     DB_PORT = os.getenv("DB_PORT")
     DB_USER = os.getenv("DB_USER")
@@ -25,6 +28,7 @@ def main():
     SSH_HOST = os.getenv("SSH_HOST")
     SSH_PORT = os.getenv("SSH_PORT")
     LOCAL_PORT = os.getenv("LOCAL_PORT")
+    MYSQL_VRSN = os.getenv("MYSQL_VRSN")
 
     # Ensure the necessary directories exist
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -45,7 +49,7 @@ def main():
     # List of commands
     # ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
     ssh_command = f"ssh -f -N -L {LOCAL_PORT}:{DB_HOST}:{DB_PORT} {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
-    backup_command = f"sudo docker run --rm mysql:latest mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
+    backup_command = f"{"" if IS_WINDOWS else "sudo "}docker run --rm mysql:{MYSQL_VRSN} mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
     cleanup_command = f"pkill -f ssh.*{LOCAL_PORT}:{DB_HOST}:{DB_PORT}".split()
 
     # Custom log-and-print function
@@ -62,6 +66,26 @@ def main():
 
     # Writes to backup file using backup command
     def docker_backup():
+        # 1. Validate the specified MySQL image tag
+        url = "https://registry.hub.docker.com/v2/repositories/library/mysql/tags" # Contains list of all valid tags for public MySQL image via Docker Hub
+        tags = []
+
+        while url:
+            res = req.get(url)
+            if res.status_code != 200:
+                print(f"Error fetching tags: {res.status_code}")
+                break
+
+            data = res.json() # Data JSON format: { count, next, previous, results }
+            tags.extend(tag.get("name") for tag in data.get("results"))
+            url = data.get("next")
+
+        # Replace invalid tag if necessary
+        if MYSQL_VRSN not in tags:
+            i = backup_command.index(f"mysql:{MYSQL_VRSN}")
+            backup_command[i] = "mysql:latest"
+            
+        # 2. Backup database via Docker
         with open(BACKUP_FILE, "w") as backup_file:
             backup_process = subprocess.run(backup_command, stdout=backup_file, stderr=subprocess.PIPE)
             if backup_process.returncode != 0:
