@@ -17,6 +17,7 @@ COMPRESSED_FILE="$BACKUP_FILE.gz"
 # SSH_HOST -> retrieved from .env
 # SSH_PORT -> retrieved from .env
 # LOCAL_PORT -> retrieved from .env
+# MYSQL_VRSN -> retrieved from .env
 
 # Ensure the necessary directories exist
 mkdir -p "$LOG_DIR"
@@ -51,9 +52,20 @@ if [ "$SSH_TUNNEL_REQUIRED" = true ]; then
     fi
 fi
 
+# Validate the specified MySQL image tag
+URL="https://registry.hub.docker.com/v2/repositories/library/mysql/tags/$MYSQL_VRSN"
+RESPONSE=$(curl -s "$URL")
+MESSAGE=$(echo "$RESPONSE" | jq ".message")
+if [[ -n "$MESSAGE" ]]; then
+    echo "MySQL tag successfully validated."
+else
+    echo "Invalid MySQL tag."
+    exit 1
+fi
+
 # Run mysqldump inside Docker container
 log_message "Starting database backup..."
-sudo docker run --rm mysql:latest mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PSWD" "$DB_NAME" > "$BACKUP_FILE" 2>> "$LOG_FILE"
+sudo docker run --rm mysql:"$MYSQL_VRSN" mysqldump -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PSWD" "$DB_NAME" > "$BACKUP_FILE" 2>> "$LOG_FILE"
 if [ $? -ne 0 ]; then
     log_message "Failed to backup data."
     exit 1

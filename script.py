@@ -67,23 +67,12 @@ def main():
     # Writes to backup file using backup command
     def docker_backup():
         # 1. Validate the specified MySQL image tag
-        url = "https://registry.hub.docker.com/v2/repositories/library/mysql/tags" # Contains list of all valid tags for public MySQL image via Docker Hub
-        tags = []
+        url = f"https://registry.hub.docker.com/v2/repositories/library/mysql/tags/{MYSQL_VRSN}" # Endpoint for MySQL tags via Docker Hub
+        res = req.get(url)
 
-        while url:
-            res = req.get(url)
-            if res.status_code != 200:
-                print(f"Error fetching tags: {res.status_code}")
-                break
-
-            data = res.json() # Data JSON format: { count, next, previous, results }
-            tags.extend(tag.get("name") for tag in data.get("results"))
-            url = data.get("next")
-
-        # Replace invalid tag if necessary
-        if MYSQL_VRSN not in tags:
-            i = backup_command.index(f"mysql:{MYSQL_VRSN}")
-            backup_command[i] = "mysql:latest"
+        if res.status_code != 200:
+            print(f"Error fetching tags: {res.status_code}")
+            return 1 # Force the script to stop running if the tag is invalid
             
         # 2. Backup database via Docker
         with open(BACKUP_FILE, "w") as backup_file:
