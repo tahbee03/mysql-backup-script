@@ -8,28 +8,76 @@ from shutil import which
 import requests as req
 import platform
 
+load_dotenv() # Load .env file
+
+# Configuration variables
+TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_DIR = "./logs"
+LOG_FILE = f"{LOG_DIR}/log_{TIMESTAMP}.log"
+BACKUP_DIR = "./backup"
+BACKUP_FILE = f"{BACKUP_DIR}/backup_{TIMESTAMP}.sql"
+COMPRESSED_FILE = f"{BACKUP_FILE}.zip"
+IS_WINDOWS = True if platform.system() == "Windows" else False
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PSWD = os.getenv("DB_PSWD")
+DB_NAME = os.getenv("DB_NAME")
+SSH_USER = os.getenv("SSH_USER")
+SSH_HOST = os.getenv("SSH_HOST")
+SSH_PORT = os.getenv("SSH_PORT")
+LOCAL_PORT = os.getenv("LOCAL_PORT")
+MYSQL_VRSN = os.getenv("MYSQL_VRSN")
+
+# List of commands
+# ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
+ssh_command = f"ssh -f -N -L {LOCAL_PORT}:{DB_HOST}:{DB_PORT} {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
+backup_command = f"{"" if IS_WINDOWS else "sudo "}docker run --rm mysql:{MYSQL_VRSN} mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
+cleanup_command = f"pkill -f ssh.*{LOCAL_PORT}:{DB_HOST}:{DB_PORT}".split()
+
+# Helper functions
+def log_message(code, msg): # Custom log-and-print function
+    # LOGGING CODES:
+    # info - 20
+    # warning - 30
+    # error - 40
+    # critical - 50
+    # (Source: https://docs.python.org/3/library/logging.html)
+
+    logging.log(code, msg)
+    print(msg)
+
+def command_check(cmd): # Checks if a specific command exists
+    if which(cmd) == None:
+        log_message(40, f"The command \"{cmd}\" does not exist on your machine.")
+        return 1
+    else:
+        return 0
+
+def docker_backup(): # Writes to backup file using backup command
+    # 1. Validate the specified MySQL image tag
+    url = f"https://registry.hub.docker.com/v2/repositories/library/mysql/tags/{MYSQL_VRSN}" # Endpoint for MySQL tags via Docker Hub
+    res = req.get(url)
+
+    if res.status_code != 200:
+        print(f"Error fetching tag '{MYSQL_VRSN}'. (Status Code: {res.status_code})")
+        return 1 # Force the script to stop running if the tag is invalid
+        
+    # 2. Backup database via Docker
+    with open(BACKUP_FILE, "w") as backup_file:
+        backup_process = subprocess.run(backup_command, stdout=backup_file, stderr=subprocess.PIPE)
+        if backup_process.returncode != 0:
+            log_message(40, backup_process.stderr.decode("utf-8"))
+            return 1
+        else:
+            return 0
+        
+def ssh_cleanup(): # Terminates any ongoing SSH connection
+    log_message(20, "Terminating SSH conection...")
+    subprocess.run(cleanup_command)
+
+# Main execution
 def main():
-    load_dotenv() # Load .env file
-
-    # Configuration variables
-    TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    LOG_DIR = "./logs"
-    LOG_FILE = f"{LOG_DIR}/log_{TIMESTAMP}.log"
-    BACKUP_DIR = "./backup"
-    BACKUP_FILE = f"{BACKUP_DIR}/backup_{TIMESTAMP}.sql"
-    COMPRESSED_FILE = f"{BACKUP_FILE}.zip"
-    IS_WINDOWS = True if platform.system() == "Windows" else False
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-    DB_USER = os.getenv("DB_USER")
-    DB_PSWD = os.getenv("DB_PSWD")
-    DB_NAME = os.getenv("DB_NAME")
-    SSH_USER = os.getenv("SSH_USER")
-    SSH_HOST = os.getenv("SSH_HOST")
-    SSH_PORT = os.getenv("SSH_PORT")
-    LOCAL_PORT = os.getenv("LOCAL_PORT")
-    MYSQL_VRSN = os.getenv("MYSQL_VRSN")
-
     # Ensure the necessary directories exist
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -45,56 +93,6 @@ def main():
     # Progress flags
     SSH_TUNNEL_REQUIRED = False
     BACKUP_COMPLETE = False
-
-    # List of commands
-    # ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
-    ssh_command = f"ssh -f -N -L {LOCAL_PORT}:{DB_HOST}:{DB_PORT} {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
-    backup_command = f"{"" if IS_WINDOWS else "sudo "}docker run --rm mysql:{MYSQL_VRSN} mysqldump -h {DB_HOST} -P {DB_PORT} -u {DB_USER} -p{DB_PSWD} {DB_NAME}".split()
-    cleanup_command = f"pkill -f ssh.*{LOCAL_PORT}:{DB_HOST}:{DB_PORT}".split()
-
-    # Custom log-and-print function
-    def log_message(code, msg):
-        # LOGGING CODES:
-        # info - 20
-        # warning - 30
-        # error - 40
-        # critical - 50
-        # (Source: https://docs.python.org/3/library/logging.html)
-
-        logging.log(code, msg)
-        print(msg)
-
-    # Writes to backup file using backup command
-    def docker_backup():
-        # 1. Validate the specified MySQL image tag
-        url = f"https://registry.hub.docker.com/v2/repositories/library/mysql/tags/{MYSQL_VRSN}" # Endpoint for MySQL tags via Docker Hub
-        res = req.get(url)
-
-        if res.status_code != 200:
-            print(f"Error fetching tags: {res.status_code}")
-            return 1 # Force the script to stop running if the tag is invalid
-            
-        # 2. Backup database via Docker
-        with open(BACKUP_FILE, "w") as backup_file:
-            backup_process = subprocess.run(backup_command, stdout=backup_file, stderr=subprocess.PIPE)
-            if backup_process.returncode != 0:
-                log_message(40, backup_process.stderr.decode("utf-8"))
-                return 1
-            else:
-                return 0
-
-    # Checks if a specific command exists
-    def command_check(cmd):
-        if which(cmd) == None:
-            log_message(40, f"The command \"{cmd}\" does not exist on your machine.")
-            return 1
-        else:
-            return 0
-
-    # Terminates any ongoing SSH connection
-    def ssh_cleanup():
-        log_message(20, "Terminating SSH conection...")
-        subprocess.run(cleanup_command)
 
     log_message(20, "Initiating backup script via Python...")
     
