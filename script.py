@@ -91,8 +91,10 @@ def main():
     )
 
     # Progress flags
-    SSH_TUNNEL_REQUIRED = False
+    SSH_TUNNEL_REQUIRED = True if all(var != None for var in [LOCAL_PORT, DB_HOST, DB_PORT, SSH_USER, SSH_HOST, SSH_PORT]) else False
     BACKUP_COMPLETE = False
+
+    # NOTE: all() (used above) returns True if all the items in the iterable fit the boolean criteria, and returns False otherwise
 
     log_message(20, "Initiating backup script via Python...")
     
@@ -102,15 +104,8 @@ def main():
     else:
         log_message(20, "Program check successful.")
 
-    # Attempt backup with a direct connection to the MySQL server
-    if not SSH_TUNNEL_REQUIRED:
-        log_message(20, "Attempting direct server connection...")
-        if docker_backup() != 0:
-            log_message(40, "Backup via direct connection failed.")
-            SSH_TUNNEL_REQUIRED = True
-        else:
-            log_message(20, "Backup via direct connection successful.")
-            BACKUP_COMPLETE = True
+    if SSH_TUNNEL_REQUIRED == False:
+        log_message(30, "Incomplete SSH configuration.")
 
     # Attempt backup with SSH connection
     if SSH_TUNNEL_REQUIRED:
@@ -124,11 +119,21 @@ def main():
             log_message(20, "SSH connection successful. Attempting to back up data...")
             if docker_backup() != 0:
                 log_message(40, "Backup via SSH connection failed.")
-                ssh_cleanup()
-                exit(1)
+                SSH_TUNNEL_REQUIRED = False
             else:
                 log_message(20, "Backup via SSH connection successful.")
                 BACKUP_COMPLETE = True
+            ssh_cleanup()
+
+    # Attempt backup with a direct connection to the MySQL server
+    if not SSH_TUNNEL_REQUIRED:
+        log_message(20, "Attempting direct server connection...")
+        if docker_backup() != 0:
+            log_message(40, "Backup via direct connection failed.")
+            exit(1)
+        else:
+            log_message(20, "Backup via direct connection successful.")
+            BACKUP_COMPLETE = True
 
     # Compress backup file
     if BACKUP_COMPLETE:
@@ -136,10 +141,6 @@ def main():
         with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
             myzip.write(f"{BACKUP_FILE}")
         log_message(20, f"Compression completed: {COMPRESSED_FILE}")
-
-    # Clean up SSH tunnel if used
-    if SSH_TUNNEL_REQUIRED:
-        ssh_cleanup()
 
     log_message(20, "Done.")
     exit(0)
