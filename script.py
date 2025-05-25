@@ -7,14 +7,17 @@ from zipfile import ZipFile
 from shutil import which
 import requests as req
 import platform
+from time import sleep
+import sys
 
 load_dotenv() # Load .env file
 
 # Configuration variables
+CWD = os.path.dirname(os.path.abspath(sys.argv[0]))
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-LOG_DIR = "./logs"
+LOG_DIR = f"{CWD}/logs"
 LOG_FILE = f"{LOG_DIR}/log_{TIMESTAMP}.log"
-BACKUP_DIR = "./backup"
+BACKUP_DIR = f"{CWD}/backup"
 BACKUP_FILE = f"{BACKUP_DIR}/backup_{TIMESTAMP}.sql"
 COMPRESSED_FILE = f"{BACKUP_FILE}.zip"
 IS_WINDOWS = True if platform.system() == "Windows" else False
@@ -36,6 +39,19 @@ backup_command = f"{"" if IS_WINDOWS else "sudo "}docker run --rm mysql:{MYSQL_V
 cleanup_command = f"pkill -f ssh.*{LOCAL_PORT}:{DB_HOST}:{DB_PORT}".split()
 
 # Helper functions
+def render_red(text): # Returns "red" text using the necessary ANSI escape sequences
+    return f"\033[91m{text}\033[00m"
+
+def render_yellow(text): # Returns "yellow" text using the necessary ANSI escape sequences
+    return f"\033[93m{text}\033[00m"
+
+def print_typewriter(text):
+    for char in text:
+        print(char, end="")
+        sys.stdout.flush()
+        sleep(0.05)
+    print()
+
 def log_message(code, msg): # Custom log-and-print function
     # LOGGING CODES:
     # info - 20
@@ -45,7 +61,14 @@ def log_message(code, msg): # Custom log-and-print function
     # (Source: https://docs.python.org/3/library/logging.html)
 
     logging.log(code, msg)
-    print(msg)
+    # print(msg)
+
+    if code == 30:
+        print_typewriter(render_yellow(msg))
+    elif code == 40 or code == 50:
+        print_typewriter(render_red(msg))
+    else:
+        print_typewriter(msg)
 
 def command_check(cmd): # Checks if a specific command exists
     if which(cmd) == None:
@@ -60,8 +83,8 @@ def docker_backup(): # Writes to backup file using backup command
     res = req.get(url)
 
     if res.status_code != 200:
-        print(f"Error fetching tag '{MYSQL_VRSN}'. (Status Code: {res.status_code})")
-        return 1 # Force the script to stop running if the tag is invalid
+        log_message(40, f"Error fetching tag '{MYSQL_VRSN}'. (Status Code: {res.status_code})")
+        exit(1)
         
     # 2. Backup database via Docker
     with open(BACKUP_FILE, "w") as backup_file:
@@ -73,11 +96,15 @@ def docker_backup(): # Writes to backup file using backup command
             return 0
         
 def ssh_cleanup(): # Terminates any ongoing SSH connection
-    log_message(20, "Terminating SSH conection...")
+    log_message(20, "Terminating SSH connection...")
+    sleep(2)
     subprocess.run(cleanup_command)
 
 # Main execution
 def main():
+    print(render_yellow(f"NOTE: Once the script terminates (with or without errors), the log file can be located here: {LOG_FILE}"))
+    sleep(2)
+
     # Ensure the necessary directories exist
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -97,8 +124,10 @@ def main():
     # NOTE: all() (used above) returns True if all the items in the iterable fit the boolean criteria, and returns False otherwise
 
     log_message(20, "Initiating backup script via Python...")
+    sleep(2)
     
     log_message(20, "Checking for required programs...")
+    sleep(2)
     if command_check("ssh") != 0 or command_check("docker") != 0:
         exit(1)
     else:
@@ -110,13 +139,15 @@ def main():
     # Attempt backup with SSH connection
     if SSH_TUNNEL_REQUIRED:
         log_message(20, "Attempting SSH connection...")
+        sleep(2)
         ssh_process = subprocess.run(ssh_command, stderr=subprocess.PIPE)
         if ssh_process.returncode != 0:
             log_message(40, ssh_process.stderr.decode("utf-8"))
             log_message(40, "Failed to set up SSH connection.")
-            exit(1)
+            SSH_TUNNEL_REQUIRED = False
         else:
             log_message(20, "SSH connection successful. Attempting to back up data...")
+            sleep(2)
             if docker_backup() != 0:
                 log_message(40, "Backup via SSH connection failed.")
                 SSH_TUNNEL_REQUIRED = False
@@ -128,6 +159,7 @@ def main():
     # Attempt backup with a direct connection to the MySQL server
     if not SSH_TUNNEL_REQUIRED:
         log_message(20, "Attempting direct server connection...")
+        sleep(2)
         if docker_backup() != 0:
             log_message(40, "Backup via direct connection failed.")
             exit(1)
@@ -138,6 +170,7 @@ def main():
     # Compress backup file
     if BACKUP_COMPLETE:
         log_message(20, "Compressing backup file...")
+        sleep(2)
         with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
             myzip.write(f"{BACKUP_FILE}")
         log_message(20, f"Compression completed: {COMPRESSED_FILE}")
