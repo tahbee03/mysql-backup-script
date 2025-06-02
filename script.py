@@ -9,10 +9,12 @@ import requests as req
 import platform
 from time import sleep
 import sys
+import textwrap
 
 load_dotenv() # Load .env file
 
 # Configuration variables
+ARGS = sys.argv[1:] if len(sys.argv) > 1 else None
 CWD = os.path.dirname(os.path.abspath(sys.argv[0]))
 TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 LOG_DIR = f"{CWD}/logs"
@@ -49,7 +51,7 @@ def print_typewriter(text):
     for char in text:
         print(char, end="")
         sys.stdout.flush()
-        sleep(0.05)
+        sleep(0.02)
     print()
 
 def log_message(code, msg): # Custom log-and-print function
@@ -61,14 +63,23 @@ def log_message(code, msg): # Custom log-and-print function
     # (Source: https://docs.python.org/3/library/logging.html)
 
     logging.log(code, msg)
-    # print(msg)
 
-    if code == 30:
-        print_typewriter(render_yellow(msg))
-    elif code == 40 or code == 50:
-        print_typewriter(render_red(msg))
+    if ARGS and "-q" in ARGS:
+        pass
+    elif ARGS and "-t" in ARGS:
+        if code == 30:
+            print_typewriter(render_yellow(msg))
+        elif code == 40 or code == 50:
+            print_typewriter(render_red(msg))
+        else:
+            print_typewriter(msg)
     else:
-        print_typewriter(msg)
+        if code == 30:
+            print(render_yellow(msg))
+        elif code == 40 or code == 50:
+            print(render_red(msg))
+        else:
+            print(msg)
 
 def command_check(cmd): # Checks if a specific command exists
     if which(cmd) == None:
@@ -102,6 +113,19 @@ def ssh_cleanup(): # Terminates any ongoing SSH connection
 
 # Main execution
 def main():
+    if ARGS and "-h" in ARGS:
+        print(textwrap.dedent(
+            '''\
+            MySQL Backup Script (Python)
+
+            Options:
+              -h  print script info and list of available options
+              -q  quiet mode
+              -t  typewriter effect\
+            '''
+            ))
+        exit(0)
+
     print(render_yellow(f"NOTE: Once the script terminates (with or without errors), the log file can be located here: {LOG_FILE}"))
     sleep(2)
 
