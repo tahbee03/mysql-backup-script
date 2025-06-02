@@ -51,7 +51,12 @@ def print_typewriter(text):
     for char in text:
         print(char, end="")
         sys.stdout.flush()
-        sleep(0.02)
+        speed = 2
+        if ARGS and "-t" in ARGS:
+            i = ARGS.index("-t")
+            if len(ARGS) > i + 1 and ARGS[i + 1].isnumeric():
+                speed = ARGS[i + 1]
+        sleep(0.01 * int(speed))
     print()
 
 def log_message(code, msg): # Custom log-and-print function
@@ -119,9 +124,9 @@ def main():
             MySQL Backup Script (Python)
 
             Options:
-              -h  print script info and list of available options
-              -q  quiet mode
-              -t  typewriter effect\
+                -h        print script info and list of available options
+                -q        quiet mode
+                -t <int>  typewriter effect that prints a character every <int> centisecond; <int> is 2 by default\
             '''
             ))
         exit(0)
