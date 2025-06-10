@@ -10,6 +10,7 @@ import platform
 from time import sleep
 import sys
 import textwrap
+from google.cloud import storage
 
 load_dotenv() # Load .env file
 
@@ -33,6 +34,8 @@ SSH_HOST = os.getenv("SSH_HOST")
 SSH_PORT = os.getenv("SSH_PORT")
 LOCAL_PORT = os.getenv("LOCAL_PORT")
 MYSQL_VRSN = os.getenv("MYSQL_VRSN")
+GCS_BUCKET = os.getenv("GCS_BUCKET")
+GCS_CREDS = os.getenv("GCS_CREDS")
 
 # List of commands
 # ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
@@ -116,6 +119,13 @@ def ssh_cleanup(): # Terminates any ongoing SSH connection
     sleep(2)
     subprocess.run(cleanup_command)
 
+def upload(bucket, source, destination, credentials): # Uploads file(s) to provide GCS bucket
+    client = storage.Client.from_service_account_json(credentials)
+    blob = client.get_bucket(bucket).blob(destination)
+    blob.upload_from_filename(source)
+
+    log_message(20, f"{source} successfully uploaded to Google Cloud Storage.")
+
 # Main execution
 def main():
     if ARGS and "-h" in ARGS:
@@ -124,6 +134,7 @@ def main():
             MySQL Backup Script (Python)
 
             Options:
+                -c        upload backup file to the cloud via Google Cloud Storage (GCS)
                 -h        print script info and list of available options
                 -q        quiet mode
                 -t <int>  typewriter effect that prints a character every <int> centisecond; <int> is 2 by default\
@@ -203,6 +214,16 @@ def main():
         with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
             myzip.write(f"{BACKUP_FILE}")
         log_message(20, f"Compression completed: {COMPRESSED_FILE}")
+
+    if ARGS and "-c" in ARGS:
+        # Upload ZIP file to cloud
+        log_message(20, "Uploading compressed file to the cloud...")
+
+        if GCS_BUCKET == None or GCS_CREDS == None:
+            log_message(40, "Missing cloud credentials.")
+            exit(1)
+        else:
+            upload(GCS_BUCKET, COMPRESSED_FILE, f"backup_{TIMESTAMP}.zip", GCS_CREDS)
 
     log_message(20, "Done.")
     exit(0)
