@@ -74,7 +74,7 @@ In order to ensure the script works efficiently and seamlessly, make sure that t
     $ pip install -r requirements.txt
     ```
 
-## Testing
+## Testing (Python)
 After the project setup has been done, the Python script can be tested with the following:
 
 ```bash
@@ -82,3 +82,11 @@ $ pytest
 ```
 
 NOTE: Ensure that this is ran from the root directory so that all written tests are detected.
+
+## Options (Python)
+`-c`: upload backup file to the cloud via Google Cloud Storage (GCS)  
+`-h`: print script info and list of available options  
+`-q`: quiet mode  
+`-t <int>`: typewriter effect that prints a character every `<int>`  centisecond; `<int>` is 2 by default
+
+NOTE: The options can be provided in any order. However, `-h` takes precedence over all other options and terminates the script immediately after printing info.
