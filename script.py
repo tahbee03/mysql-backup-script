@@ -10,6 +10,7 @@ import platform
 from time import sleep
 import sys
 import textwrap
+from google.cloud import storage
 
 load_dotenv() # Load .env file
 
@@ -33,6 +34,8 @@ SSH_HOST = os.getenv("SSH_HOST")
 SSH_PORT = os.getenv("SSH_PORT")
 LOCAL_PORT = os.getenv("LOCAL_PORT")
 MYSQL_VRSN = os.getenv("MYSQL_VRSN")
+GCS_BUCKET = os.getenv("GCS_BUCKET")
+GCS_CREDS = os.getenv("GCS_CREDS")
 
 # List of commands
 # ssh_command = f"ssh {SSH_USER}@{SSH_HOST} -p {SSH_PORT}".split()
@@ -116,96 +119,122 @@ def ssh_cleanup(): # Terminates any ongoing SSH connection
     sleep(2)
     subprocess.run(cleanup_command)
 
+def upload(bucket, source, destination, credentials): # Uploads file(s) to provide GCS bucket
+    try:
+        client = storage.Client.from_service_account_json(credentials)
+        blob = client.get_bucket(bucket).blob(destination)
+        blob.upload_from_filename(source)
+    except Exception as e:
+        log_message(40, e)
+    else:
+        log_message(20, f"{source.split('/')[-1]} successfully uploaded to Google Cloud Storage.")
+
 # Main execution
 def main():
-    if ARGS and "-h" in ARGS:
-        print(textwrap.dedent(
-            '''\
-            MySQL Backup Script (Python)
+    try:
+        if ARGS and "-h" in ARGS:
+            print(textwrap.dedent(
+                '''\
+                MySQL Backup Script (Python)
 
-            Options:
-                -h        print script info and list of available options
-                -q        quiet mode
-                -t <int>  typewriter effect that prints a character every <int> centisecond; <int> is 2 by default\
-            '''
-            ))
-        exit(0)
+                Options:
+                    -c        upload backup file to the cloud via Google Cloud Storage (GCS)
+                    -h        print script info and list of available options
+                    -q        quiet mode
+                    -t <int>  typewriter effect that prints a character every <int> centisecond; <int> is 2 by default\
+                '''
+                ))
+            exit(0)
 
-    print(render_yellow(f"NOTE: Once the script terminates (with or without errors), the log file can be located here: {LOG_FILE}"))
-    sleep(2)
-
-    # Ensure the necessary directories exist
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-
-    # Configure logging
-    logging.basicConfig(
-        filename=LOG_FILE,
-        format='%(asctime)s - [%(levelname)s] %(message)s', 
-        datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.INFO
-    )
-
-    # Progress flags
-    SSH_TUNNEL_REQUIRED = True if all(var != None for var in [LOCAL_PORT, DB_HOST, DB_PORT, SSH_USER, SSH_HOST, SSH_PORT]) else False
-    BACKUP_COMPLETE = False
-
-    # NOTE: all() (used above) returns True if all the items in the iterable fit the boolean criteria, and returns False otherwise
-
-    log_message(20, "Initiating backup script via Python...")
-    sleep(2)
-    
-    log_message(20, "Checking for required programs...")
-    sleep(2)
-    if command_check("ssh") != 0 or command_check("docker") != 0:
-        exit(1)
-    else:
-        log_message(20, "Program check successful.")
-
-    if SSH_TUNNEL_REQUIRED == False:
-        log_message(30, "Incomplete SSH configuration.")
-
-    # Attempt backup with SSH connection
-    if SSH_TUNNEL_REQUIRED:
-        log_message(20, "Attempting SSH connection...")
+        print(render_yellow(f"NOTE: Once the script terminates (with or without errors), the log file can be located here: {LOG_FILE}"))
         sleep(2)
-        ssh_process = subprocess.run(ssh_command, stderr=subprocess.PIPE)
-        if ssh_process.returncode != 0:
-            log_message(40, ssh_process.stderr.decode("utf-8"))
-            log_message(40, "Failed to set up SSH connection.")
-            SSH_TUNNEL_REQUIRED = False
-        else:
-            log_message(20, "SSH connection successful. Attempting to back up data...")
-            sleep(2)
-            if docker_backup() != 0:
-                log_message(40, "Backup via SSH connection failed.")
-                SSH_TUNNEL_REQUIRED = False
-            else:
-                log_message(20, "Backup via SSH connection successful.")
-                BACKUP_COMPLETE = True
-            ssh_cleanup()
 
-    # Attempt backup with a direct connection to the MySQL server
-    if not SSH_TUNNEL_REQUIRED:
-        log_message(20, "Attempting direct server connection...")
+        # Ensure the necessary directories exist
+        os.makedirs(LOG_DIR, exist_ok=True)
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+
+        # Configure logging
+        logging.basicConfig(
+            filename=LOG_FILE,
+            format='%(asctime)s - [%(levelname)s] %(message)s', 
+            datefmt='%Y-%m-%d %H:%M:%S',
+            level=logging.INFO
+        )
+
+        # Progress flags
+        SSH_TUNNEL_REQUIRED = True if all(var != None for var in [LOCAL_PORT, DB_HOST, DB_PORT, SSH_USER, SSH_HOST, SSH_PORT]) else False
+        BACKUP_COMPLETE = False
+
+        # NOTE: all() (used above) returns True if all the items in the iterable fit the boolean criteria, and returns False otherwise
+
+        log_message(20, "Initiating backup script via Python...")
         sleep(2)
-        if docker_backup() != 0:
-            log_message(40, "Backup via direct connection failed.")
+        
+        log_message(20, "Checking for required programs...")
+        sleep(2)
+        if command_check("ssh") != 0 or command_check("docker") != 0:
             exit(1)
         else:
-            log_message(20, "Backup via direct connection successful.")
-            BACKUP_COMPLETE = True
+            log_message(20, "Program check successful.")
 
-    # Compress backup file
-    if BACKUP_COMPLETE:
-        log_message(20, "Compressing backup file...")
-        sleep(2)
-        with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
-            myzip.write(f"{BACKUP_FILE}")
-        log_message(20, f"Compression completed: {COMPRESSED_FILE}")
+        if SSH_TUNNEL_REQUIRED == False:
+            log_message(30, "Incomplete SSH configuration.")
 
-    log_message(20, "Done.")
-    exit(0)
+        # Attempt backup with SSH connection
+        if SSH_TUNNEL_REQUIRED:
+            log_message(20, "Attempting SSH connection...")
+            sleep(2)
+            ssh_process = subprocess.run(ssh_command, stderr=subprocess.PIPE)
+            if ssh_process.returncode != 0:
+                log_message(40, ssh_process.stderr.decode("utf-8"))
+                log_message(40, "Failed to set up SSH connection.")
+                SSH_TUNNEL_REQUIRED = False
+            else:
+                log_message(20, "SSH connection successful. Attempting to back up data...")
+                sleep(2)
+                if docker_backup() != 0:
+                    log_message(40, "Backup via SSH connection failed.")
+                    SSH_TUNNEL_REQUIRED = False
+                else:
+                    log_message(20, "Backup via SSH connection successful.")
+                    BACKUP_COMPLETE = True
+                ssh_cleanup()
+
+        # Attempt backup with a direct connection to the MySQL server
+        if not SSH_TUNNEL_REQUIRED:
+            log_message(20, "Attempting direct server connection...")
+            sleep(2)
+            if docker_backup() != 0:
+                log_message(40, "Backup via direct connection failed.")
+                exit(1)
+            else:
+                log_message(20, "Backup via direct connection successful.")
+                BACKUP_COMPLETE = True
+
+        # Compress backup file
+        if BACKUP_COMPLETE:
+            log_message(20, "Compressing backup file...")
+            sleep(2)
+            with ZipFile(f"{COMPRESSED_FILE}", "w") as myzip:
+                myzip.write(f"{BACKUP_FILE}")
+            log_message(20, f"Compression completed: {COMPRESSED_FILE}")
+
+        if ARGS and "-c" in ARGS:
+            # Upload ZIP file to cloud
+            log_message(20, "Uploading compressed file to the cloud...")
+
+            if GCS_BUCKET == None or GCS_CREDS == None:
+                log_message(40, "Missing cloud credentials.")
+                exit(1)
+            else:
+                upload(GCS_BUCKET, COMPRESSED_FILE, f"backup_{TIMESTAMP}.zip", GCS_CREDS)
+
+        log_message(20, "Done.")
+        exit(0)
+    except Exception as e: # Catch-all exception for undefined errors that may occur
+        log_message(40, e)
+        log_message(40, "Oops, an unexpected error has occurred!")
+        exit(1)
 
 if __name__ == "__main__":
     # NOTE: Code to be executed was reformatted so that it is not ran when this file is imported
